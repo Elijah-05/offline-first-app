@@ -1,0 +1,6 @@
+@import "tailwindcss";
+
+html {
+  stroke: 1px solid red;
+  background-color: rgb(39, 39, 39);
+}
