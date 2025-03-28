@@ -1,84 +1,82 @@
-const express = require("express");
-const bodyParser = require("body-parser");
-const cors = require("cors");
-const morgan = require("morgan");
-const { v4: uuidv4 } = require("uuid");
+require('dotenv').config(); // Load environment variables from .env
+
+const express = require('express');
+const cors = require('cors');
+const { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } = require('@google-ai/generativelanguage');
 
 const app = express();
-const PORT = 3001;
+const port = process.env.PORT || 5000;
 
-// Middleware
-app.use(cors());
-app.use(bodyParser.json());
+app.use(cors());  // Enable Cross-Origin Resource Sharing (CORS)
+app.use(express.json()); // Parse JSON request bodies
 
-// Morgan Logger Middleware (logs incoming requests)
-app.use(morgan("common")); // Use 'combined' format for detailed logs
+const MODEL_NAME = "gemini-1.0-pro"; // Or other available Gemini model
+const API_KEY = process.env.GOOGLE_API_KEY;
 
-// In-memory database
-let tasks = [
-  { id: uuidv4(), title: "Learn offline-first patterns", completed: false },
-  { id: uuidv4(), title: "Implement service worker", completed: false },
-  { id: uuidv4(), title: "Test offline capabilities", completed: false },
+const genAI = new GoogleGenerativeAI(API_KEY);
+const model = genAI.getModel({ model: MODEL_NAME });
+
+const generationConfig = {
+  temperature: 0.9,
+  topK: 1,
+  topP: 1,
+  maxOutputTokens: 2048,
+};
+
+const safetySettings = [
+  {
+    category: HarmCategory.HARM_CATEGORY_HARASSMENT,
+    threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+  },
+  {
+    category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+    threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+  },
+  {
+    category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+    threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+  },
+  {
+    category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+    threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+  },
 ];
 
-// Routes
-app.get("/", (req, res) => {
-  res.send("Hello World!");
+
+app.post('/api/rag', async (req, res) => {
+    try {
+        const { query, context } = req.body;
+
+        // PROMPT ENGINEERING:  CRITICAL FOR RAG
+        const promptText = `Answer the question below based on the context provided. If you don't know the answer or the context doesn't provide the answer, say "I don't know".
+                             Question: ${query}
+                             Context: ${context}`;
+
+        const parts = [
+          {text: promptText},
+        ];
+
+        const result = await model.generateContent({
+          contents: [{ role: "user", parts }],
+          generationConfig,
+          safetySettings,
+        });
+
+        const response = result.response;
+
+        if (response && response.text) {
+            res.json({ response: response.text });
+        } else {
+            res.status(500).json({ error: "No response from the model." });
+        }
+
+    } catch (error) {
+        console.error("Error:", error);
+        res.status(500).json({ error: error.message });
+    }
 });
 
-app.get("/api", (req, res) => {
-  res.send("Hello World!");
-});
 
-app.get("/api/tasks", (req, res) => {
-  setTimeout(() => {
-    res.json(tasks);
-  }, 500);
-});
-
-app.post("/api/tasks", (req, res) => {
-  const { title } = req.body;
-  if (!title) {
-    return res.status(400).json({ error: "Title is required" });
-  }
-
-  const newTask = {
-    id: uuidv4(),
-    title,
-    completed: false,
-  };
-
-  tasks.push(newTask);
-  res.status(201).json(newTask);
-});
-
-app.put("/api/tasks/:id", (req, res) => {
-  const { id } = req.params;
-  const { title, completed } = req.body;
-
-  const taskIndex = tasks.findIndex((task) => task.id === id);
-  if (taskIndex === -1) {
-    return res.status(404).json({ error: "Task not found" });
-  }
-
-  if (title !== undefined) tasks[taskIndex].title = title;
-  if (completed !== undefined) tasks[taskIndex].completed = completed;
-
-  res.json(tasks[taskIndex]);
-});
-
-app.delete("/api/tasks/:id", (req, res) => {
-  const { id } = req.params;
-  tasks = tasks.filter((task) => task.id !== id);
-  res.status(204).send();
-});
-
-// Error handling middleware
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({ error: "Something went wrong!" });
-});
-
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
+app.listen(port, () => {
+    console.log(`Server listening on port ${port}`);
 });

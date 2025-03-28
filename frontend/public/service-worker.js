@@ -46,7 +46,7 @@ self.addEventListener("fetch", (event) => {
             const responseToCache = response.clone();
             caches
               .open(API_CACHE_NAME)
-              .then((cache) => cache.put(request, responseToCache));
+              .then((cache) => cache?.put(request, responseToCache));
             return response;
           })
           .catch(() => caches.match(request))

@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { useEffect, useState } from "react";
-import offlineApi from "../api/offlineApi";
+import offlineApi, { getQueue } from "../api/offlineApi";
 import { useOnlineStatus } from "../hooks/useOnlineStatus";
 import axios from "axios";
 
@@ -17,13 +17,18 @@ const TaskList = () => {
   const [error, setError] = useState("");
   const isOnline = useOnlineStatus();
 
-  console.log("isOnline: ", isOnline);
+  //  caches.open("api-cache-v1").then((cache) => {
+  //     console.log("cache log: ", cache.keys());
+  //   });
+
+  console.log("getCaches: ", getQueue())
 
   useEffect(() => {
     const fetchTasks = async () => {
       try {
         setLoading(true);
         const response = await offlineApi.get("/tasks");
+        console.log("response: ", response);
         setTasks(response.data);
         setError("");
       } catch (err) {
@@ -36,9 +41,7 @@ const TaskList = () => {
       }
     };
 
-    if (isOnline) {
-      fetchTasks();
-    }
+    fetchTasks();
   }, [isOnline]);
 
   const handleAddTask = async () => {
